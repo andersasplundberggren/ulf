@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Årshjul – Admin</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%2372a3ff'/%3E%3C/svg%3E">
+  <style>
+    :root{ --bg:#0b1220; --fg:#e6eefc; --muted:#9fb0d3; --card:#101a33; --border:#1e2b4f; --accent:#72a3ff; }
+    :root.light{ --bg:#ffffff; --fg:#0b1220; --muted:#52607a; --card:#ffffff; --border:#e5e7eb; --accent:#2b59ff; }
+    *{box-sizing:border-box}
+    body{margin:0; background:var(--bg); color:var(--fg); font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif}
+    header{
+      position:sticky; top:0; z-index:30;
+      display:grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items:center;
+      gap:12px;
+      padding:12px 16px;
+      background:#ffffff !important;
+      border-bottom:1px solid #e5e7eb;
+      color:#0b1220;
+    }
+    h1{margin:0; font-size:20px}
+    .logo{height:32px; width:auto; display:block}
+    @media (max-width:980px){ .logo{height:26px} }
+
+    .wrap{max-width:900px; margin:20px auto; padding:0 16px; display:grid; gap:16px}
+    .card{background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px}
+    .row{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+    .row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px}
+    input,textarea,button,select{background:color-mix(in hsl, var(--card) 70%, black 10%); color:var(--fg); border:1px solid var(--border); border-radius:10px; padding:10px 12px}
+    :root.light input,:root.light textarea,:root.light button,:root.light select{ background:color-mix(in hsl, var(--card) 85%, white 10%) }
+    button{cursor:pointer}
+    .pill{display:inline-flex; align-items:center; gap:8px; font-size:12px; padding:6px 10px; border-radius:999px; border:1px solid var(--border)}
+    a{color:var(--accent)}
+    .hint{color:var(--muted); font-size:12px}
+    .ok{color:#5bd6a2}
+    .err{color:#ff7a7a}
+    .chips{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+    .chip{display:inline-flex; align-items:center; gap:6px; padding:6px 10px; border:1px solid var(--border); border-radius:999px; background:var(--card); font-size:12px; cursor:pointer}
+
+    .toolbar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0 4px}
+    .toolbar input[type="search"]{flex:1 1 220px}
+    .count{font-size:12px; color:var(--muted); margin-left:auto}
+
+    .event-item{border:1px solid var(--border); border-radius:10px; padding:12px; margin:8px 0; cursor:pointer; transition:all 0.2s}
+    .event-item:hover{background:color-mix(in hsl, var(--card) 80%, var(--accent) 10%)}
+    .event-item.editing{border-color:var(--accent); background:color-mix(in hsl, var(--card) 90%, var(--accent) 5%)}
+    .event-title{font-weight:600; margin-bottom:4px}
+    .event-meta{font-size:12px; color:var(--muted); display:flex; gap:12px; flex-wrap:wrap}
+    .event-actions{margin-top:8px; display:flex; gap:8px}
+    .btn-small{padding:4px 8px; font-size:11px; border-radius:6px; cursor:pointer; border:1px solid}
+    /* Låser redigeringsknapparna till mörkt tema-utseende */
+    .btn-edit{background:#72a3ff; color:#ffffff; border-color:#72a3ff}
+    .btn-delete{background:#101a33; color:#ff7a7a; border-color:#ff7a7a}
+    .empty-state{text-align:center; padding:40px; color:var(--muted)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Årshjul admin</h1>
+    <div style="margin-left:auto; display:flex; gap:8px; align-items:center">
+      <button id="logoutBtn" style="padding:4px 8px; font-size:11px; background:var(--muted); color:var(--fg); border:1px solid var(--border); border-radius:6px; cursor:pointer; display:none">Logga ut</button>
+      <label class="pill" style="gap:6px; cursor:pointer">
+        <input id="themeSwitch" type="checkbox" />
+        <span id="themeLabel">Mörkt</span>
+      </label>
+    </div>
+  </header>
+
+  <!-- Lösenordsskärm -->
+  <div id="loginScreen" class="wrap" style="display:none">
+    <section class="card" style="max-width:400px; margin:40px auto; text-align:center">
+      <h2 style="margin:0 0 16px">Inloggning krävs</h2>
+      <p class="hint" style="margin-bottom:20px">Ange lösenord för att komma åt admin-funktionerna</p>
+      <input id="passwordInput" type="password" placeholder="Lösenord" style="width:100%; margin-bottom:12px" />
+      <button id="loginBtn" style="width:100%; margin-bottom:8px">Logga in</button>
+      <div id="loginError" class="err" style="margin-top:8px; display:none">Fel lösenord</div>
+    </section>
+  </div>
+
+  <!-- Huvudinnehåll -->
+  <div id="mainContent" class="wrap" style="display:none">
+    <section class="card" aria-labelledby="catsHeading">
+      <h2 id="catsHeading" style="margin:0 0 8px">Kategorier</h2>
+      <div class="hint">Klicka för att välja en kategori, eller skriv en ny i fältet nedan.</div>
+      <div id="catChips" class="chips"></div>
+    </section>
+
+    <section class="card" aria-labelledby="formTitle">
+      <h2 style="margin:0 0 8px" id="formTitle">Lägg till händelse</h2>
+      <div class="row" style="grid-template-columns:2fr 1fr">
+        <input id="title" placeholder="Titel" />
+        <input id="category" list="catlist" placeholder="Kategori (välj eller skriv ny)" />
+        <datalist id="catlist"></datalist>
+      </div>
+      <div class="row3" style="margin-top:10px">
+        <input id="start" type="date" />
+        <input id="end" type="date" />
+        <input id="color" type="color" value="#72a3ff" />
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input id="location" placeholder="Plats (valfritt)" />
+        <input id="link" placeholder="Länk (valfritt)" />
+      </div>
+      <textarea id="desc" rows="4" placeholder="Beskrivning (valfritt)" style="margin-top:10px"></textarea>
+      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap">
+        <button id="save"><span id="saveText">Spara händelse</span></button>
+        <button id="clear" type="button">Töm formulär</button>
+        <button id="cancel" type="button" style="display:none; background:var(--muted)">Avbryt redigering</button>
+      </div>
+      <div id="msg" class="hint" style="margin-top:10px"></div>
+    </section>
+
+    <!-- Flyttat hit längst ned -->
+    <section class="card" aria-labelledby="eventsHeading">
+      <div style="display:flex; align-items:center; gap:10px; justify-content:space-between">
+        <h2 id="eventsHeading" style="margin:0 0 8px">Befintliga händelser</h2>
+        <div class="count" id="eventsCount"></div>
+      </div>
+      <div class="hint">Klicka på "Redigera" för att ändra en händelse eller "Radera" för att ta bort den.</div>
+
+      <div class="toolbar" role="region" aria-label="Filtrering och sök">
+        <input id="search" type="search" placeholder="Sök titel, beskrivning, plats..." />
+        <select id="catFilter" title="Filtrera på kategori">
+          <option value="">Alla kategorier</option>
+        </select>
+        <button id="clearFilters" class="btn-small" type="button" title="Rensa filter">Rensa</button>
+      </div>
+
+      <div id="eventsList">
+        <div class="empty-state">Laddar händelser...</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+// ====== KONFIGURERA DESSA VÄRDEN ======
+const API_BASE = 'https://script.google.com/macros/s/AKfycbzEoi4hp9OM74MielnvENqA7NdQ8w1XQcsSKqXnfYEYD0vXdYZgOOFyjBC5emlNgVfm/exec';
+const TARGET_SHEET = 'ulf';  // ÄNDRA DETTA för att styra vilket blad som används
+const ADMIN_TOKEN = 'Password';  // ÄNDRA DETTA till din faktiska token
+const LOGIN_PASSWORD = 'admin';  // ÄNDRA DETTA till önskat lösenord
+// ==========================================
+
+const el=s=>document.querySelector(s);
+let currentEditingId = null;
+let allEvents = [];
+let filtered = [];
+let hasUnsavedChanges = false;
+
+// ---- Lösenordsskydd ----
+function checkLogin() {
+  const savedPassword = localStorage.getItem('adminPassword');
+  const isLoggedIn = savedPassword === LOGIN_PASSWORD;
+  
+  el('#loginScreen').style.display = isLoggedIn ? 'none' : 'block';
+  el('#mainContent').style.display = isLoggedIn ? 'block' : 'none';
+  
+  return isLoggedIn;
+}
+
+function handleLogin() {
+  const password = el('#passwordInput').value.trim();
+  const errorEl = el('#loginError');
+  
+  if (password === LOGIN_PASSWORD) {
+    localStorage.setItem('adminPassword', password);
+    errorEl.style.display = 'none';
+    el('#passwordInput').value = '';
+    checkLogin();
+    loadEvents(); // Ladda händelser efter inloggning
+  } else {
+    errorEl.style.display = 'block';
+    el('#passwordInput').value = '';
+    el('#passwordInput').focus();
+  }
+}
+
+function logout() {
+  localStorage.removeItem('adminPassword');
+  checkLogin();
+}
+
+// ---- Hjälpfunktioner ----
+function escapeHTML(str){
+  return (str==null?"":String(str))
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function setBusy(btn, busy=true){
+  if(!btn) return; btn.disabled = !!busy; btn.setAttribute('aria-busy', String(!!busy));
+}
+
+function initTheme(){
+  const saved=localStorage.getItem('theme2')||'dark';
+  const root=document.documentElement, sw=el('#themeSwitch'), lbl=el('#themeLabel');
+  const isLight=saved==='light'; root.classList.toggle('light',isLight);
+  sw.checked=isLight; lbl.textContent=isLight?'Ljust':'Mörkt';
+  sw.onchange=()=>{const on=sw.checked; root.classList.toggle('light',on); localStorage.setItem('theme2',on?'light':'dark'); lbl.textContent=on?'Ljust':'Mörkt';};
+}
+
+async function loadEvents(){
+  try{
+    const url = API_BASE + (API_BASE.includes('?') ? '&' : '?') + `sheet=${encodeURIComponent(TARGET_SHEET)}`;
+    const res = await fetch(url, {headers: {'Accept': 'application/json'}});
+    if(!res.ok) throw new Error('Kunde inte ladda händelser');
+
+    // Robust JSON-hantering (vissa Apps Script svarar text/json)
+    let data;
+    const text = await res.text();
+    try { data = JSON.parse(text); } catch { data = []; }
+
+    allEvents = Array.isArray(data) ? data : [];
+    applyFilters();
+    updateCategories();
+
+  } catch(e) {
+    console.error('Fel vid laddning av händelser:', e);
+    el('#eventsList').innerHTML = '<div class="empty-state">Kunde inte ladda händelser</div>';
+    el('#eventsCount').textContent = '';
+  }
+}
+
+function applyFilters(){
+  const q = (el('#search').value||'').trim().toLowerCase();
+  const cat = el('#catFilter').value;
+
+  filtered = allEvents.filter(ev => {
+    const inCat = !cat || ev.category === cat;
+    if(!q) return inCat;
+    const hay = [ev.title, ev.description, ev.location].map(x => (x||'').toLowerCase()).join(' ');
+    return inCat && hay.includes(q);
+  }).sort((a,b) => (a.start_date||'').localeCompare(b.start_date||''));
+
+  renderEventsList();
+}
+
+function renderEventsList(){
+  const container = el('#eventsList');
+  el('#eventsCount').textContent = filtered.length ? `${filtered.length} händelser` : '';
+
+  if(filtered.length === 0) {
+    container.innerHTML = '<div class="empty-state">Inga händelser matchar filtret.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(event => {
+  const isEditing = currentEditingId === event.id;
+  const title = escapeHTML(event.title || 'Ingen titel');
+  const desc = escapeHTML(event.description || '');
+  const cat = escapeHTML(event.category || '');
+  const loc = escapeHTML(event.location || '');
+  const link = escapeHTML(event.link || '');
+  const dates = `📅 ${formatDate(event.start_date)}${event.end_date && event.end_date !== event.start_date ? ' – ' + formatDate(event.end_date) : ''}`;
+
+  return `
+    <div class="event-item ${isEditing ? 'editing' : ''}" data-id="${escapeHTML(event.id)}">
+      <div class="event-title">${title}</div>
+      <div class="event-meta">
+        <span>${dates}</span>
+        ${cat ? `<span>🏷️ ${cat}</span>` : ''}
+        ${loc ? `<span>📍 ${loc}</span>` : ''}
+        ${link ? `<span>🔗 <a href="${link}" target="_blank" rel="noopener noreferrer">länk</a></span>` : ''}
+      </div>
+      ${desc ? `<div style="margin-top:6px; font-size:13px; color:var(--muted)">${desc}</div>` : ''}
+
+      <div class="event-actions">
+        <button class="btn-small btn-edit" onclick="editEvent('${escapeHTML(event.id)}')">Redigera</button>
+        <button class="btn-small btn-delete" onclick="deleteEvent('${escapeHTML(event.id)}', '${title.replace(/&#39;/g, '')}', this)">Radera</button>
+      </div>
+    </div>  <!-- 🔧 Viktigt: stänger .event-item -->
+  `;
+}).join('');
+
+}
+
+function formatDate(dateStr) {
+  if(!dateStr) return '';
+  try {
+    const date = new Date(dateStr + 'T12:00:00');
+    return date.toLocaleDateString('sv-SE', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch(e) {
+    return dateStr;
+  }
+}
+
+function updateCategories(){
+  const cats = [...new Set(allEvents.map(e => e.category).filter(Boolean))].sort();
+
+  // Datalist till formuläret
+  const dl = el('#catlist');
+  dl.innerHTML = cats.map(c => `<option value="${escapeHTML(c)}"></option>`).join('');
+
+  // Filter dropdown
+  const sel = el('#catFilter');
+  const selVal = sel.value; // bevara vald
+  sel.innerHTML = '<option value="">Alla kategorier</option>' + cats.map(c => `<option value="${escapeHTML(c)}">${escapeHTML(c)}</option>`).join('');
+  if([...sel.options].some(o => o.value === selVal)) sel.value = selVal;
+
+  // Chips
+  const chips = el('#catChips');
+  chips.innerHTML = '';
+  cats.forEach(c => {
+    const span = document.createElement('span');
+    span.className = 'chip';
+    span.textContent = c;
+    span.title = 'Klicka för att välja kategori i formuläret';
+    span.onclick = () => { el('#category').value = c; };
+    chips.appendChild(span);
+  });
+}
+
+function editEvent(eventId) {
+  const event = allEvents.find(e => e.id === eventId);
+  if(!event) return;
+
+  currentEditingId = eventId;
+
+  // Fyll formuläret
+  el('#title').value = event.title || '';
+  el('#category').value = event.category || '';
+  el('#start').value = event.start_date || '';
+  el('#end').value = event.end_date || '';
+  el('#color').value = event.color || '#72a3ff';
+  el('#location').value = event.location || '';
+  el('#link').value = event.link || '';
+  el('#desc').value = event.description || '';
+
+  // Uppdatera UI
+  el('#formTitle').textContent = 'Redigera händelse';
+  el('#saveText').textContent = 'Uppdatera händelse';
+  el('#cancel').style.display = 'inline-block';
+
+  // Uppdatera listan för att visa vald händelse
+  renderEventsList();
+
+  // Scrolla till formuläret
+  el('#formTitle').scrollIntoView({behavior: 'smooth'});
+}
+
+function cancelEdit() {
+  currentEditingId = null;
+  el('#formTitle').textContent = 'Lägg till händelse';
+  el('#saveText').textContent = 'Spara händelse';
+  el('#cancel').style.display = 'none';
+  hasUnsavedChanges = false;
+
+  clearForm();
+  renderEventsList();
+}
+
+function clearForm() {
+  ['title','desc','start','end','link','location','category'].forEach(i => el('#'+i).value = '');
+  el('#color').value = '#72a3ff';
+  localStorage.removeItem('adminFormDraft');
+}
+
+async function deleteEvent(eventId, eventTitle, btn) {
+  if(!confirm(`Är du säker på att du vill radera \"${eventTitle}\"?`)) return;
+
+  const msg = el('#msg');
+  msg.innerHTML = 'Raderar...';
+  setBusy(btn, true);
+
+  try {
+    const payload = { action: 'delete', token: ADMIN_TOKEN, sheet: TARGET_SHEET, id: eventId };
+    const body = new URLSearchParams(payload);
+    const res = await fetch(API_BASE, { method: 'POST', headers: {'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8'}, body });
+
+    const text = await res.text();
+    let j; try { j = JSON.parse(text); } catch { j = {}; }
+
+    if(!res.ok || j.error) throw new Error(j.error || res.status);
+
+    msg.innerHTML = '<span class="ok">Händelse raderad ✔</span>';
+
+    // Optimistisk uppdatering
+    allEvents = allEvents.filter(e => e.id !== eventId);
+    applyFilters();
+
+    setTimeout(() => { msg.innerHTML = ''; }, 1200);
+
+  } catch(e) {
+    console.error(e);
+    msg.innerHTML = '<span class="err">Fel vid radering: ' + escapeHTML(e.message) + '</span>';
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+function fmtDate(d){const y=d.getUTCFullYear();const m=String(d.getUTCMonth()+1).padStart(2,'0');const da=String(d.getUTCDate()).padStart(2,'0');return `${y}-${m}-${da}`;}
+function parseDate(str){ const m=/(\d{4})-(\d{2})-(\d{2})/.exec(str); if(!m) return null; return new Date(Date.UTC(+m[1],+m[2]-1,+m[3],12,0,0)); }
+
+// FIXAD VERSION: Tar bort automatisk årsjustering
+function normalizeEnd(startStr,endStr){
+  // Ta bara bort den automatiska logiken som lägger till år
+  // Låt användaren själv bestämma datumen
+  return endStr;
+}
+
+async function saveEvent(){
+  const msg=el('#msg');
+  const btn = el('#save');
+
+  let start=el('#start').value.trim();
+  let end=(el('#end').value||'').trim();
+  
+  // FIXAD VERSION: Ta bort automatisk datum-normalisering
+  // Bara grundläggande validering utan att ändra datum
+  if(end && start && parseDate(end) && parseDate(start) && parseDate(end) < parseDate(start)){
+    msg.innerHTML='<span class="err">Slutdatum kan inte vara före startdatum</span>'; 
+    return;
+  }
+
+  const payload={
+    action:'upsert',
+    token:ADMIN_TOKEN,
+    sheet:TARGET_SHEET,
+    id: currentEditingId || Math.random().toString(36).slice(2,10),
+    title:el('#title').value.trim(),
+    description:el('#desc').value.trim(),
+    start_date:start,
+    end_date:end,
+    category:el('#category').value.trim() || '',
+    color:el('#color').value || '',
+    link:el('#link').value.trim() || '',
+    location:el('#location').value.trim() || ''
+  };
+
+  if(!payload.title || !payload.start_date){ 
+    msg.innerHTML='<span class="err">Titel och startdatum krävs</span>'; 
+    return; 
+  }
+
+  msg.innerHTML = currentEditingId ? 'Uppdaterar...' : 'Sparar...';
+  setBusy(btn, true);
+
+  try{
+    const body=new URLSearchParams(payload);
+    const res=await fetch(API_BASE,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body});
+    const text=await res.text(); 
+    let j; try { j = JSON.parse(text); } catch { j = {}; }
+
+    if(!res.ok || j.error) throw new Error(j.error||res.status);
+
+    msg.innerHTML = currentEditingId ? '<span class="ok">Händelse uppdaterad ✔</span>' : '<span class="ok">Händelse sparad ✔</span>';
+
+    // Optimistisk uppdatering
+    const newEvent = { id: payload.id, title: payload.title, description: payload.description, start_date: payload.start_date, end_date: payload.end_date, category: payload.category, color: payload.color, link: payload.link, location: payload.location };
+    const idx = allEvents.findIndex(e => e.id === newEvent.id);
+    if(idx>=0) allEvents[idx] = newEvent; else allEvents.push(newEvent);
+    applyFilters();
+
+    // Återställ formulär
+    if(currentEditingId) {
+      cancelEdit();
+    } else {
+      clearForm();
+    }
+
+    hasUnsavedChanges = false;
+    setTimeout(() => { msg.innerHTML = ''; }, 1200);
+
+  }catch(e){
+    msg.innerHTML='<span class="err">Fel vid sparning: '+escapeHTML(e.message)+'</span>';
+  } finally {
+    setBusy(btn, false);
+  }
+}
+
+// ---- Utkast i localStorage ----
+function attachDraftPersistence(){
+  const ids = ['title','category','start','end','color','location','link','desc'];
+  const read = () => { try { return JSON.parse(localStorage.getItem('adminFormDraft')||'{}'); } catch { return {}; } };
+  const write = (obj) => localStorage.setItem('adminFormDraft', JSON.stringify(obj));
+
+  const draft = read();
+  ids.forEach(id => { if(draft[id]) el('#'+id).value = draft[id]; });
+
+  ids.forEach(id => {
+    el('#'+id).addEventListener('input', () => {
+      const d = read(); d[id] = el('#'+id).value; write(d); hasUnsavedChanges = true;
+    });
+  });
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if(hasUnsavedChanges) { e.preventDefault(); e.returnValue = ''; }
+});
+
+// ---- Init ----
+window.addEventListener('DOMContentLoaded',()=>{
+  initTheme();
+
+  // Kontrollera inloggning först
+  if (!checkLogin()) {
+    // Visa bara inloggningsskärmen
+    el('#loginBtn').onclick = handleLogin;
+    el('#passwordInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') handleLogin();
+    });
+    el('#passwordInput').focus();
+    return; // Stoppa här om inte inloggad
+  }
+
+  // Visa utloggningsknappen
+  el('#logoutBtn').style.display = 'inline-block';
+  el('#logoutBtn').onclick = logout;
+
+  el('#save').onclick = saveEvent;
+  el('#clear').onclick = () => { if(!hasUnsavedChanges || confirm('Tömma formuläret?')) { clearForm(); hasUnsavedChanges=false; } };
+  el('#cancel').onclick = () => { if(!hasUnsavedChanges || confirm('Avbryt redigering och förlora ändringar?')) cancelEdit(); };
+
+  // Filtrering
+  el('#search').addEventListener('input', applyFilters);
+  el('#catFilter').addEventListener('change', applyFilters);
+  el('#clearFilters').addEventListener('click', () => { el('#search').value=''; el('#catFilter').value=''; applyFilters(); });
+
+  attachDraftPersistence();
+  loadEvents();
+});
+</script>
+</body>
+</html>
